@@ -6,8 +6,8 @@ class SelfHealingService {
 
   /// Resuelve la ruta fisica del archivo local.
   /// Si el archivo ha sido movido o renombrado, intenta ubicarlo de forma proactiva
-  /// y actualiza la ruta fisica si se encuentra una nueva ubicacion valida.
-  Future<String?> resolvePhysicalPath(String originalPath, String hash) async {
+  /// y actualiza la ruta fisica si se encuentra una nueva ubicacion valida por UUID.
+  Future<String?> resolvePhysicalPath(String originalPath, String uuid) async {
     // 1. Caso ideal: El archivo existe en la ruta original
     if (await File(originalPath).exists()) {
       return originalPath;
@@ -26,8 +26,8 @@ class SelfHealingService {
       if (newFilepath != null && await File(newFilepath).exists()) {
         print('[INFO] [Dart Self-Healing] Archivo auto-recuperado en nueva ruta: $newFilepath');
 
-        // Actualizar la ruta fisica en la base de datos para futuras peticiones ultra-eficientes
-        await _repository.updateUrlCache(hash, newFilepath);
+        // Actualizar la ruta fisica en la base de datos para futuras peticiones ultra-eficientes por UUID
+        await _repository.updateUrlCache(uuid, newFilepath);
         
         return newFilepath;
       }

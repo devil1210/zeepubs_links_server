@@ -12,20 +12,29 @@ class DownloadController {
   Router get router {
     final Router router = Router();
 
-    // Registrar endpoint de descarga por hash
-    router.get('/api/dl/<hash>', _handleDownload);
+    // Registrar endpoint de descarga por UUID
+    router.get('/api/dl/<uuid>', _handleDownload);
 
     return router;
   }
 
-  Future<Response> _handleDownload(Request request, String hash) async {
-    print('[INFO] [Dart Shelf] Solicitud de descarga recibida para hash: $hash');
+  Future<Response> _handleDownload(Request request, String uuid) async {
+    print('[INFO] [Dart Shelf] Solicitud de descarga recibida para UUID: $uuid');
+
+    // Validar formato UUID (8-4-4-4-12 caracteres hexadecimales)
+    final RegExp uuidRegex = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    );
+    if (!uuidRegex.hasMatch(uuid)) {
+      print('[WARN] [Dart Shelf] Formato de UUID invalido recibido: $uuid');
+      return Response.badRequest(body: 'Formato de enlace invalido.');
+    }
 
     try {
-      // 1. Obtener los metadatos y la URL/Ruta desde el repositorio
-      final ResolvedLink? resolvedLink = await _repository.getUrlFromHash(hash);
+      // 1. Obtener los metadatos y la URL/Ruta desde el repositorio por UUID
+      final ResolvedLink? resolvedLink = await _repository.getUrlFromUuid(uuid);
       if (resolvedLink == null) {
-        print('[ERROR] [Dart Shelf] Hash no encontrado en base de datos: $hash');
+        print('[ERROR] [Dart Shelf] UUID no encontrado en base de datos: $uuid');
         return Response.notFound('Enlace no encontrado o expirado.');
       }
 
@@ -36,30 +45,17 @@ class DownloadController {
       if (originalPath == null && externalUrl != null) {
         if (externalUrl.startsWith('http://') || externalUrl.startsWith('https://')) {
           print('[INFO] Redirigiendo descarga remota: $externalUrl');
-          
-          // Registrar descarga de forma asincrona sin bloquear la respuesta HTTP
-          if (resolvedLink.bookHash != null) {
-            _repository.registerDownload(
-              bookHash: resolvedLink.bookHash!,
-              seriesHash: resolvedLink.seriesHash,
-              title: resolvedLink.title,
-            ).catchError((Object e) {
-              print('[ERROR] Error en registro asincrono: $e');
-              return null;
-            });
-          }
-          
           return Response.movedPermanently(externalUrl);
         }
       }
 
       if (originalPath == null) {
-        print('[ERROR] [Dart Shelf] No se especifico ruta fisica ni URL externa para el hash: $hash');
+        print('[ERROR] [Dart Shelf] No se especifico ruta fisica ni URL externa para el UUID: $uuid');
         return Response.notFound('El archivo no está disponible.');
       }
 
       // 3. Resolver la ruta fisica local con Auto-Recuperacion (Self-Healing)
-      final String? resolvedPath = await _healingService.resolvePhysicalPath(originalPath, hash);
+      final String? resolvedPath = await _healingService.resolvePhysicalPath(originalPath, uuid);
       if (resolvedPath == null) {
         print('[ERROR] [Dart Shelf] Archivo fisico local no disponible.');
         return Response.notFound('El archivo no está disponible.');
@@ -73,18 +69,6 @@ class DownloadController {
       final int fileSize = await file.length();
 
       print('[INFO] [Dart Shelf] Sirviendo archivo local de forma eficiente ($fileSize bytes): $resolvedPath');
-
-      // Registrar descarga de forma asincrona sin bloquear la respuesta HTTP
-      if (resolvedLink.bookHash != null) {
-        _repository.registerDownload(
-          bookHash: resolvedLink.bookHash!,
-          seriesHash: resolvedLink.seriesHash,
-          title: resolvedLink.title,
-        ).catchError((Object e) {
-          print('[ERROR] Error en registro asincrono: $e');
-          return null;
-        });
-      }
 
       return Response.ok(
         fileStream,
