@@ -3,6 +3,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../repositories/link_repository.dart';
 import '../services/self_healing_service.dart';
+import '../models/resolved_link.dart';
 
 class DownloadController {
   final LinkRepository _repository = LinkRepository();
@@ -21,17 +22,40 @@ class DownloadController {
     print('[INFO] [Dart Shelf] Solicitud de descarga recibida para hash: $hash');
 
     try {
-      // 1. Obtener la URL/Ruta desde el repositorio
-      final String? originalPath = await _repository.getUrlFromHash(hash);
-      if (originalPath == null) {
+      // 1. Obtener los metadatos y la URL/Ruta desde el repositorio
+      final ResolvedLink? resolvedLink = await _repository.getUrlFromHash(hash);
+      if (resolvedLink == null) {
         print('[ERROR] [Dart Shelf] Hash no encontrado en base de datos: $hash');
         return Response.notFound('Enlace no encontrado o expirado.');
       }
 
+      final String? originalPath = resolvedLink.filepath;
+      final String? externalUrl = resolvedLink.url;
+
       // 2. Manejar descargas remotas HTTP/HTTPS si aplica (compatibilidad)
-      if (originalPath.startsWith('http://') || originalPath.startsWith('https://')) {
-        print('[INFO] Redirigiendo descarga remota: $originalPath');
-        return Response.movedPermanently(originalPath);
+      if (originalPath == null && externalUrl != null) {
+        if (externalUrl.startsWith('http://') || externalUrl.startsWith('https://')) {
+          print('[INFO] Redirigiendo descarga remota: $externalUrl');
+          
+          // Registrar descarga de forma asincrona sin bloquear la respuesta HTTP
+          if (resolvedLink.bookHash != null) {
+            _repository.registerDownload(
+              bookHash: resolvedLink.bookHash!,
+              seriesHash: resolvedLink.seriesHash,
+              title: resolvedLink.title,
+            ).catchError((Object e) {
+              print('[ERROR] Error en registro asincrono: $e');
+              return null;
+            });
+          }
+          
+          return Response.movedPermanently(externalUrl);
+        }
+      }
+
+      if (originalPath == null) {
+        print('[ERROR] [Dart Shelf] No se especifico ruta fisica ni URL externa para el hash: $hash');
+        return Response.notFound('El archivo no está disponible.');
       }
 
       // 3. Resolver la ruta fisica local con Auto-Recuperacion (Self-Healing)
@@ -45,11 +69,22 @@ class DownloadController {
       final String filename = resolvedPath.split(Platform.pathSeparator).last;
 
       // 4. Servir el archivo fisico local usando streaming asincrono
-      // openRead() abre un stream de bytes directos optimizado que no carga el archivo entero en memoria RAM
       final Stream<List<int>> fileStream = file.openRead();
       final int fileSize = await file.length();
 
       print('[INFO] [Dart Shelf] Sirviendo archivo local de forma eficiente ($fileSize bytes): $resolvedPath');
+
+      // Registrar descarga de forma asincrona sin bloquear la respuesta HTTP
+      if (resolvedLink.bookHash != null) {
+        _repository.registerDownload(
+          bookHash: resolvedLink.bookHash!,
+          seriesHash: resolvedLink.seriesHash,
+          title: resolvedLink.title,
+        ).catchError((Object e) {
+          print('[ERROR] Error en registro asincrono: $e');
+          return null;
+        });
+      }
 
       return Response.ok(
         fileStream,
