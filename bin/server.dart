@@ -6,45 +6,45 @@ import '../lib/config/database.dart';
 import '../lib/controllers/download_controller.dart';
 
 void main(List<String> args) async {
-  print('=== 🌌 Inicializando ZeePubs Links Server (Dart Shelf) ===');
+  print('[START] Inicializando ZeePubs Links Server (Dart Shelf)...');
 
   // 1. Cargar variables de entorno si existe un archivo .env
-  final env = DotEnv(includePlatformEnvironment: true)..load();
+  final DotEnv env = DotEnv(includePlatformEnvironment: true)..load();
   
-  final port = int.tryParse(env['PORT'] ?? '8080') ?? 8080;
-  final host = env['HOST'] ?? '0.0.0.0';
+  final int port = int.tryParse(env['PORT'] ?? '8080') ?? 8080;
+  final String host = env['HOST'] ?? '0.0.0.0';
 
   // 2. Inicializar base de datos
   try {
     DatabaseConfig.getPool();
   } catch (e) {
-    print('❌ Error al inicializar pool de base de datos: $e');
+    print('[ERROR] Error al inicializar pool de base de datos: $e');
   }
 
   // 3. Configurar controladores y enrutamiento
-  final downloadController = DownloadController();
+  final DownloadController downloadController = DownloadController();
 
   // 4. Configurar pipeline de Middlewares y handlers de Shelf
-  final handler = Pipeline()
+  final Handler handler = Pipeline()
       .addMiddleware(logRequests()) // Logging de peticiones HTTP en consola
       .addMiddleware(_addCorsHeaders()) // Middleware opcional para CORS
       .addHandler(downloadController.router.call);
 
   // 5. Iniciar Servidor HTTP Shelf
-  final server = await shelf_io.serve(handler, host, port);
-  print('✅ Servidor de Links en Dart activo escuchando en http://${server.address.host}:${server.port}');
+  final HttpServer server = await shelf_io.serve(handler, host, port);
+  print('[INFO] Servidor de Links en Dart activo escuchando en http://${server.address.host}:${server.port}');
 
   // 6. Manejar cierre ordenado (SIGINT / SIGTERM)
-  ProcessSignal.sigint.watch().listen((_) => _shutdown(server));
-  ProcessSignal.sigterm.watch().listen((_) => _shutdown(server));
+  ProcessSignal.sigint.watch().listen((ProcessSignal sig) => _shutdown(sig, server));
+  ProcessSignal.sigterm.watch().listen((ProcessSignal sig) => _shutdown(sig, server));
 }
 
 /// Middleware simple para añadir cabeceras CORS
 Middleware _addCorsHeaders() {
   return (Handler innerHandler) {
     return (Request request) async {
-      final response = await innerHandler(request);
-      return response.change(headers: {
+      final Response response = await innerHandler(request);
+      return response.change(headers: <String, String>{
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Origin, Content-Type, Accept',
@@ -53,11 +53,11 @@ Middleware _addCorsHeaders() {
   };
 }
 
-/// Detención controlada del servidor y sus conexiones
-void _shutdown(HttpServer server) async {
-  print('\n⏹️ Apagando el servidor en Dart...');
+/// Detencion controlada del servidor y sus conexiones
+void _shutdown(ProcessSignal sig, HttpServer server) async {
+  print('\n[INFO] Recibida senal ${sig.name}. Apagando el servidor en Dart...');
   await server.close(force: true);
   await DatabaseConfig.close();
-  print('✨ Servidor apagado limpiamente. ¡Hasta luego!');
+  print('[INFO] Servidor apagado limpiamente.');
   exit(0);
 }

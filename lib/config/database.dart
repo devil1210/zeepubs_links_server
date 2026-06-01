@@ -8,17 +8,17 @@ class DatabaseConfig {
   static Pool getPool() {
     if (_pool != null) return _pool!;
 
-    final dbUrl = Platform.environment['DATABASE_URL'] ?? 
+    final String dbUrl = Platform.environment['DATABASE_URL'] ?? 
         'postgresql://postgres:postgres@localhost:5432/zeepub_bot';
 
-    print('📦 Conectando al Pool de base de datos PostgreSQL en Dart...');
+    print('[INFO] Conectando al Pool de base de datos PostgreSQL en Dart...');
     
     // Configurar endpoints del Pool
     _pool = Pool.withEndpoints(
-      [Endpoint.parse(dbUrl)],
-      settings: PoolSettings(
+      <Endpoint>[Endpoint.parse(dbUrl)],
+      settings: const PoolSettings(
         maxConnectionCount: 15,
-        sslMode: SslMode.disable, // Ajustar según producción
+        sslMode: SslMode.disable, // Ajustar segun produccion
       ),
     );
 
@@ -28,7 +28,7 @@ class DatabaseConfig {
   /// Cierra todas las conexiones del Pool ordenadamente
   static Future<void> close() async {
     if (_pool != null) {
-      print('⏹️ Cerrando conexiones del Pool PostgreSQL...');
+      print('[INFO] Cerrando conexiones del Pool PostgreSQL...');
       await _pool!.close();
       _pool = null;
     }

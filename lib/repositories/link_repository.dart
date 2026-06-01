@@ -4,51 +4,76 @@ import '../config/database.dart';
 class LinkRepository {
   final Pool _pool = DatabaseConfig.getPool();
 
-  /// Obtiene la URL mapeada a partir de su hash en url_mappings
+  /// Obtiene la ruta fisica del libro o la URL externa a partir del hash del enlace en release_links
   Future<String?> getUrlFromHash(String hash) async {
     try {
-      final result = await _pool.execute(
-        Sql.named('SELECT url FROM url_mappings WHERE hash = :hash LIMIT 1'),
+      final Result result = await _pool.execute(
+        Sql.named(
+          'SELECT r.filepath, l.url '
+          'FROM release_links l '
+          'LEFT JOIN milestone_releases r ON l.milestone_release_id = r.id '
+          'WHERE l.hash = :hash '
+          'LIMIT 1'
+        ),
         parameters: {'hash': hash},
       );
 
       if (result.isEmpty) return null;
-      return result.first.first as String?;
+      
+      final ResultRow row = result.first;
+      final String? filepath = row[0] as String?;
+      final String? url = row[1] as String?;
+      
+      return filepath ?? url;
     } catch (e) {
-      print('❌ Error en getUrlFromHash en Dart: $e');
+      print('[ERROR] Error en getUrlFromHash en Dart: $e');
       return null;
     }
   }
 
-  /// Busca el filepath de un libro en la tabla books a partir de su filename
+  /// Busca el filepath de un libro en la tabla milestone_releases a partir de su filename
   Future<String?> getFilepathByFilename(String filename) async {
     try {
-      final result = await _pool.execute(
-        Sql.named('SELECT filepath FROM books WHERE filename = :filename LIMIT 1'),
+      final Result result = await _pool.execute(
+        Sql.named(
+          'SELECT filepath '
+          'FROM milestone_releases '
+          'WHERE filename = :filename '
+          'LIMIT 1'
+        ),
         parameters: {'filename': filename},
       );
 
       if (result.isEmpty) return null;
       return result.first.first as String?;
     } catch (e) {
-      print('❌ Error en getFilepathByFilename en Dart: $e');
+      print('[ERROR] Error en getFilepathByFilename en Dart: $e');
       return null;
     }
   }
 
-  /// Actualiza la URL física en url_mappings tras una auto-recuperación exitosa (Self-Healing)
+  /// Actualiza la ruta fisica en milestone_releases tras una auto-recuperacion exitosa (Self-Healing)
   Future<void> updateUrlCache(String hash, String newFilepath) async {
     try {
       await _pool.execute(
-        Sql.named('UPDATE url_mappings SET url = :url WHERE hash = :hash'),
+        Sql.named(
+          'UPDATE milestone_releases '
+          'SET filepath = :filepath '
+          'WHERE id = ('
+          '  SELECT milestone_release_id '
+          '  FROM release_links '
+          '  WHERE hash = :hash '
+          '  LIMIT 1'
+          ')'
+        ),
         parameters: {
-          'url': newFilepath,
+          'filepath': newFilepath,
           'hash': hash,
         },
       );
-      print('🔄 [Dart Cache] URL actualizada para el hash "$hash" con nueva ruta.');
+      print('[INFO] [Dart Cache] Ruta fisica actualizada en milestone_releases para el hash "$hash" con nueva ruta.');
     } catch (e) {
-      print('❌ Error al actualizar caché de URL en Dart: $e');
+      print('[ERROR] Error al actualizar ruta fisica en Dart: $e');
     }
   }
 }
