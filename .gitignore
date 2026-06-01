@@ -1,0 +1,15 @@
+# Files and directories created by pub
+.dart_tool/
+.packages
+.pub/
+build/
+
+# Avoid committing local environment configurations
+.env
+*.local
+.env.production
+.env.development
+
+# OS-generated files
+.DS_Store
+Thumbs.db
