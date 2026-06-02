@@ -1,11 +1,12 @@
 import 'package:postgres/postgres.dart';
-import '../config/database.dart';
+import '../../../../common/database/database.dart';
+import '../../core/repositories/i_link_repository.dart';
 import '../models/resolved_link.dart';
 
-class LinkRepository {
+class LinkRepository implements ILinkRepository {
   final Pool _pool = DatabaseConfig.getPool();
 
-  /// Obtiene los metadatos del lanzamiento y la ruta fisica/URL externa a partir del UUID del enlace en release_links
+  @override
   Future<ResolvedLink?> getUrlFromUuid(String uuid) async {
     try {
       final Result result = await _pool.execute(
@@ -30,7 +31,7 @@ class LinkRepository {
       
       return ResolvedLink(
         filepath: filepath,
-        url: url, // Permite redireccion externa si no hay filepath
+        url: url,
         bookHash: bookHash,
         seriesHash: seriesHash,
         title: title,
@@ -41,7 +42,7 @@ class LinkRepository {
     }
   }
 
-  /// Busca el filepath de un libro en la tabla milestone_releases a partir de su filename (para Auto-Recuperacion)
+  @override
   Future<String?> getFilepathByFilename(String filename) async {
     try {
       final Result result = await _pool.execute(
@@ -62,7 +63,7 @@ class LinkRepository {
     }
   }
 
-  /// Actualiza la ruta fisica en milestone_releases tras una auto-recuperacion exitosa (Self-Healing) por UUID
+  @override
   Future<void> updateUrlCache(String uuid, String newFilepath) async {
     try {
       await _pool.execute(

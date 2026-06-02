@@ -1,8 +1,10 @@
 import 'dart:io';
-import '../repositories/link_repository.dart';
+import '../repositories/i_link_repository.dart';
 
 class SelfHealingService {
-  final LinkRepository _repository = LinkRepository();
+  final ILinkRepository _repository;
+
+  SelfHealingService(this._repository);
 
   /// Resuelve la ruta fisica del archivo local.
   /// Si el archivo ha sido movido o renombrado, intenta ubicarlo de forma proactiva

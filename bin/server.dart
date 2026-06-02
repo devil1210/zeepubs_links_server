@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:dotenv/dotenv.dart';
-import '../lib/config/database.dart';
-import '../lib/controllers/download_controller.dart';
+import '../lib/common/database/database.dart';
+import '../lib/features/downloads/presentation/download_controller.dart';
 
 void main(List<String> args) async {
   print('[START] Inicializando ZeePubs Links Server (Dart Shelf)...');

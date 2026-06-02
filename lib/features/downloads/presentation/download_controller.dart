@@ -1,13 +1,18 @@
 import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
-import '../repositories/link_repository.dart';
-import '../services/self_healing_service.dart';
-import '../models/resolved_link.dart';
+import '../core/repositories/i_link_repository.dart';
+import '../core/services/self_healing_service.dart';
+import '../data/models/resolved_link.dart';
+import '../data/repositories/link_repository.dart';
 
 class DownloadController {
-  final LinkRepository _repository = LinkRepository();
-  final SelfHealingService _healingService = SelfHealingService();
+  final ILinkRepository _repository = LinkRepository();
+  late final SelfHealingService _healingService;
+
+  DownloadController() {
+    _healingService = SelfHealingService(_repository);
+  }
 
   Router get router {
     final Router router = Router();
