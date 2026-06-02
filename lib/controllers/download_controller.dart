@@ -31,7 +31,7 @@ class DownloadController {
     }
 
     try {
-      // 1. Obtener los metadatos y la ruta fisica desde el repositorio por UUID del libro
+      // 1. Obtener los metadatos y la URL/Ruta desde el repositorio por UUID del enlace
       final ResolvedLink? resolvedLink = await _repository.getUrlFromUuid(uuid);
       if (resolvedLink == null) {
         print('[ERROR] [Dart Shelf] UUID no encontrado en base de datos: $uuid');
@@ -39,13 +39,22 @@ class DownloadController {
       }
 
       final String? originalPath = resolvedLink.filepath;
+      final String? externalUrl = resolvedLink.url;
+
+      // 2. Manejar descargas remotas HTTP/HTTPS si aplica (compatibilidad)
+      if (originalPath == null && externalUrl != null) {
+        if (externalUrl.startsWith('http://') || externalUrl.startsWith('https://')) {
+          print('[INFO] Redirigiendo descarga remota: $externalUrl');
+          return Response.movedPermanently(externalUrl);
+        }
+      }
 
       if (originalPath == null) {
-        print('[ERROR] [Dart Shelf] No se especifico ruta fisica para el UUID: $uuid');
+        print('[ERROR] [Dart Shelf] No se especifico ruta fisica ni URL externa para el UUID: $uuid');
         return Response.notFound('El archivo no está disponible.');
       }
 
-      // 2. Resolver la ruta fisica local con Auto-Recuperacion (Self-Healing)
+      // 3. Resolver la ruta fisica local con Auto-Recuperacion (Self-Healing)
       final String? resolvedPath = await _healingService.resolvePhysicalPath(originalPath, uuid);
       if (resolvedPath == null) {
         print('[ERROR] [Dart Shelf] Archivo fisico local no disponible.');
@@ -55,7 +64,7 @@ class DownloadController {
       final File file = File(resolvedPath);
       final String filename = resolvedPath.split(Platform.pathSeparator).last;
 
-      // 3. Servir el archivo fisico local usando streaming asincrono
+      // 4. Servir el archivo fisico local usando streaming asincrono
       final Stream<List<int>> fileStream = file.openRead();
       final int fileSize = await file.length();
 
